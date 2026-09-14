@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local scratch/playground files (não devem ir para o repositório)
+temp/
+
+# Local editor/OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

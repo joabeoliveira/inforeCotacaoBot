@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Oferta Padrão",
+  "type": "object",
+  "properties": {
+    "produto": { "type": "string" },
+    "preco": { "type": ["number", "null"] },
+    "preco_original": { "type": ["number", "null"] },
+    "comissao_percentual": { "type": ["number", "null"] },
+    "frete_estimado": { "type": ["number", "null"] },
+    "custo_total": { "type": ["number", "null"] },
+    "vendedor": { "type": ["string", "null"] },
+    "fornecedor": { "type": ["string", "null"] },
+    "tipo_fornecedor": { "type": ["string", "null"] },
+    "link_produto": { "type": ["string", "null"] },
+    "link_afiliado": { "type": ["string", "null"] },
+    "disponibilidade": { "type": ["string", "null"] },
+    "cep_destino": { "type": ["string", "null"] },
+    "timestamp_coleta": { "type": ["string", "null"], "format": "date-time" },
+    "fonte": { "type": ["string", "null"] }
+  },
+  "required": ["produto", "preco", "custo_total", "link_produto", "fonte"]
+}

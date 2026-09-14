@@ -1,0 +1,113 @@
+{
+  "name": "TESTE — Infore Cotações — Serper + Brave",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {}
+    },
+    {
+      "id": "2",
+      "name": "Set Query",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "values": [
+          {
+            "name": "query",
+            "value": "produto de teste"
+          }
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "3",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "authentication": "none",
+        "requestMethod": "POST",
+        "url": "https://SEU-ENDERECO-DA-API/api/quotes/search",
+        "responseFormat": "json",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{ \"query\": \"={{$json[\"query\"]}}\" }",
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4",
+      "name": "Set Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "values": [
+          {
+            "name": "offers",
+            "value": "={{$json[\"offers\"]}}"
+          },
+          {
+            "name": "count",
+            "value": "={{$json[\"count\"]}}"
+          },
+          {
+            "name": "error",
+            "value": "={{$json[\"error\"] ?? null}}"
+          }
+        ],
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Query": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Set Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false
+}
