@@ -29,12 +29,15 @@ export function createSerperClient(opts: BootstrapOptions = {}) {
   const endpoint = env.SERPER_API_URL;
   const timeoutMs = env.SERPER_TIMEOUT_MS ? Number(env.SERPER_TIMEOUT_MS) : undefined;
   const maxRetries = env.SERPER_MAX_RETRIES ? Number(env.SERPER_MAX_RETRIES) : undefined;
+  const gl = env.SERPER_GL;
+  const hl = env.SERPER_HL;
+  const location = env.SERPER_LOCATION;
 
   if (!apiKey || !apiKey.trim()) {
     throw new Error('SERPER_API_KEY is required to create SerperClient');
   }
 
-  return new SerperClient({ apiKey, endpoint, timeoutMs, maxRetries });
+  return new SerperClient({ apiKey, endpoint, timeoutMs, maxRetries, gl, hl, location });
 }
 
 export function createSerperService(opts: BootstrapOptions = {}) {
@@ -58,6 +61,9 @@ export function createSerperServiceInstance(opts: BootstrapOptions = {}) {
   const endpoint = env.SERPER_API_URL;
   const timeoutMs = env.SERPER_TIMEOUT_MS ? Number(env.SERPER_TIMEOUT_MS) : undefined;
   const maxRetries = env.SERPER_MAX_RETRIES ? Number(env.SERPER_MAX_RETRIES) : undefined;
+  const gl = env.SERPER_GL;
+  const hl = env.SERPER_HL;
+  const location = env.SERPER_LOCATION;
 
   if (!apiKey || !apiKey.trim()) {
     throw new Error('SERPER_API_KEY is required to create SerperService');
@@ -65,7 +71,7 @@ export function createSerperServiceInstance(opts: BootstrapOptions = {}) {
 
   const braveClient = env.BRAVE_SEARCH_API_KEY ? createBraveClient(opts) : undefined;
 
-  return new SerperService({ apiKey, endpoint, timeoutMs, maxRetries, braveClient });
+  return new SerperService({ apiKey, endpoint, timeoutMs, maxRetries, gl, hl, location, braveClient });
 }
 
 export default { createBraveClient, createSerperClient, createSerperService };

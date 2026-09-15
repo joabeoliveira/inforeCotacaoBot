@@ -43,6 +43,9 @@ O `Dockerfile` não copia `.env`, `tests/`, `workflows/` nem `docs/` (ver `.dock
    SERPER_API_URL=https://google.serper.dev/search
    SERPER_TIMEOUT_MS=5000
    SERPER_MAX_RETRIES=2
+   SERPER_GL=br
+   SERPER_HL=pt-br
+   SERPER_LOCATION=
    BRAVE_SEARCH_API_KEY=<sua-chave-opcional>
    BRAVE_SEARCH_API_URL=https://api.search.brave.com/res/v1/web/search
    BRAVE_SEARCH_TIMEOUT_MS=5000

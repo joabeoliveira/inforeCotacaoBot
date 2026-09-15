@@ -34,7 +34,7 @@
       "parameters": {
         "authentication": "none",
         "requestMethod": "POST",
-        "url": "https://SEU-ENDERECO-DA-API/api/quotes/search",
+        "url": "https://infore-infore-cotacao.vqytsd.easypanel.host/api/quotes/search",
         "responseFormat": "json",
         "jsonParameters": true,
         "options": {},

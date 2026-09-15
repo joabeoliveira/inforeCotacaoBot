@@ -97,6 +97,40 @@ test('usa o endpoint oficial do Serper por padrão (google.serper.dev)', async (
   assert.equal(calledUrl, 'https://google.serper.dev/search');
 });
 
+test('envia gl=br e hl=pt-br por padrão (resultados brasileiros)', async () => {
+  let sentBody: any;
+  const mockFetch = async (_url: unknown, init?: { body?: unknown }) => {
+    sentBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ shopping: [] }), { status: 200 });
+  };
+  const client = new SerperClient({ apiKey: 'k', fetchImpl: mockFetch as any });
+  await client.searchShopping('caneta esferografica');
+  assert.equal(sentBody.gl, 'br');
+  assert.equal(sentBody.hl, 'pt-br');
+  assert.equal(sentBody.type, 'shopping');
+  // Sem SERPER_LOCATION configurado, não enviamos o campo (evita restringir a busca sem decisão de negócio)
+  assert.equal(sentBody.location, undefined);
+});
+
+test('permite sobrescrever gl/hl/location', async () => {
+  let sentBody: any;
+  const mockFetch = async (_url: unknown, init?: { body?: unknown }) => {
+    sentBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ shopping: [] }), { status: 200 });
+  };
+  const client = new SerperClient({
+    apiKey: 'k',
+    fetchImpl: mockFetch as any,
+    gl: 'us',
+    hl: 'en',
+    location: 'Rio de Janeiro, Brazil',
+  });
+  await client.searchShopping('caneta');
+  assert.equal(sentBody.gl, 'us');
+  assert.equal(sentBody.hl, 'en');
+  assert.equal(sentBody.location, 'Rio de Janeiro, Brazil');
+});
+
 test('resposta sem campo shopping não quebra e retorna objeto vazio', async () => {
   const mockFetch = async () => new Response(JSON.stringify({}), { status: 200 });
   const client = new SerperClient({ apiKey: 'k', fetchImpl: mockFetch as any, maxRetries: 0 });
