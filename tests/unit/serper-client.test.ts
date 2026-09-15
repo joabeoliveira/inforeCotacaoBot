@@ -68,14 +68,21 @@ test('resposta JSON inválida levanta SerperError', async () => {
 });
 
 test('timeout dispara erro', async () => {
-  const mockFetch = async () => { await new Promise(() => {}); return new Response('', { status: 200 }); };
+  // Simula o fetch real: a promise só termina quando o sinal é abortado pelo timeout do cliente.
+  // (Um mock que nunca resolve e ignora o AbortSignal trava o teste para sempre.)
+  const mockFetch = (_url: unknown, init?: { signal?: AbortSignal }) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        const err = new Error('The operation was aborted');
+        err.name = 'AbortError';
+        reject(err);
+      });
+    });
   const client = new SerperClient({ apiKey: 'k', fetchImpl: mockFetch as any, timeoutMs: 10, maxRetries: 0 });
-  try {
-    await client.searchShopping('q');
-    assert.fail('should timeout');
-  } catch (e) {
-    assert.ok(e instanceof Error);
-  }
+  await assert.rejects(
+    () => client.searchShopping('q'),
+    (e: any) => e instanceof Error && /Serper request failed/.test(String(e.message)),
+  );
 });
 
 test('resposta sem campo shopping não quebra e retorna objeto vazio', async () => {

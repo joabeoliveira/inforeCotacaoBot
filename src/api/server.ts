@@ -15,6 +15,19 @@ function sendJSON(res: http.ServerResponse, status: number, body: unknown) {
   res.end(payload);
 }
 
+/**
+ * Registra o motivo da falha de upstream no log do container (para diagnóstico),
+ * removendo qualquer sequência longa que possa ser uma API key.
+ * O corpo devolvido ao cliente continua genérico.
+ */
+export function logUpstreamError(err: unknown) {
+  const name = err instanceof Error ? err.name : 'Error';
+  const status = (err as { status?: number } | undefined)?.status;
+  const rawMessage = err instanceof Error ? err.message : 'unknown error';
+  const safeMessage = rawMessage.replace(/[A-Za-z0-9_\-]{20,}/g, '[REDACTED]');
+  console.error(`[api] upstream error: ${name}${status ? ` status=${status}` : ''} - ${safeMessage}`);
+}
+
 export function createServer(opts: CreateServerOpts = {}) {
   const serperService = opts.serperService ?? createSerperServiceInstance();
 
@@ -60,7 +73,8 @@ export function createServer(opts: CreateServerOpts = {}) {
         const offers = await serperService.searchAndNormalize(query.trim());
         return sendJSON(res, 200, { offers, count: Array.isArray(offers) ? offers.length : 0 });
       } catch (err: any) {
-        // Do not expose internal errors or API keys
+        // Diagnóstico no log do servidor (sem expor segredos); resposta genérica ao cliente.
+        logUpstreamError(err);
         return sendJSON(res, 502, { error: 'Upstream search service failed' });
       }
     } catch (err) {
@@ -83,7 +97,12 @@ export function createServer(opts: CreateServerOpts = {}) {
       });
     },
     close() {
-      return new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+      return new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+        // Encerra sockets keep-alive ociosos para que o shutdown não fique pendurado,
+        // mantendo requisições em andamento até concluírem.
+        server.closeIdleConnections();
+      });
     },
   };
 }

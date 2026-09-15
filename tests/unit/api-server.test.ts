@@ -59,3 +59,41 @@ test('POST /api/quotes/search converte erro upstream em 502 sem expor segredos',
     await app.close();
   }
 });
+
+test('log de diagnostico registra o motivo sem vazar a chave', async () => {
+  const fakeKey = 'BSAfjvxQTblCs4Up0AD55EQhtKuCNEU';
+  const svc = {
+    searchAndNormalize: async () => {
+      const err: any = new Error(`Serper request failed with HTTP 401 (key=${fakeKey})`);
+      err.name = 'SerperError';
+      err.status = 401;
+      throw err;
+    },
+  } as any;
+  const app = createServer({ serperService: svc });
+  const port = await app.listen(0);
+  const captured: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    captured.push(args.map(String).join(' '));
+  };
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/quotes/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'foo' }),
+    });
+    assert.equal(res.status, 502);
+    // Consome o corpo para liberar o socket (evita keep-alive pendurado no teste)
+    const body = await res.json();
+    assert.equal(body.error, 'Upstream search service failed');
+  } finally {
+    console.error = originalError;
+    await app.close();
+  }
+  const log = captured.join('\n');
+  assert.ok(log.includes('SerperError'), 'log deve conter o tipo do erro');
+  assert.ok(log.includes('status=401'), 'log deve conter o status HTTP do upstream');
+  assert.ok(!log.includes(fakeKey), 'log NÃO pode conter a chave de API');
+  assert.ok(log.includes('[REDACTED]'), 'valores longos devem ser redigidos');
+});
