@@ -1,4 +1,16 @@
 import { BraveSearchClient, BraveSearchError } from "../brave/client.js";
+import { ValidationCache } from "../brave/validationCache.js";
+import { resolveSupplierDomain } from "./supplierDomains.js";
+
+export interface NormalizeOptions {
+  /**
+   * Máximo de itens validados via Brave por execução (padrão: 5).
+   * Protege o orçamento do Brave — o Serper pode devolver dezenas de itens.
+   */
+  maxBraveValidations?: number;
+  /** Cache de validações, para não repetir a mesma consulta entre cotações. */
+  cache?: ValidationCache;
+}
 
 export interface SerperShoppingItem {
   title: string;
@@ -58,8 +70,13 @@ function isGoogleShoppingRedirect(urlStr: string): boolean {
 export async function normalizeSerperShopping(
   items: SerperShoppingItem[],
   braveClient?: BraveSearchClient,
+  options: NormalizeOptions = {},
 ): Promise<OfertaUnificada[]> {
+  const maxBraveValidations = options.maxBraveValidations ?? 5;
+  const cache = options.cache;
   const results: OfertaUnificada[] = [];
+  let validationsUsed = 0;
+
   for (const item of items) {
     const produto = item.title ?? '';
     const preco = parsePriceBR(item.price) ?? null;
@@ -76,23 +93,46 @@ export async function normalizeSerperShopping(
     let validation_reason: string | null = null;
 
     if (isGoogleShoppingRedirect(String(item.link)) && braveClient) {
-      try {
-        const validated = await braveClient.validateProductLink({ product: produto, candidateUrl: String(item.link) });
-        validation_reason = validated.reason ?? null;
-        if (validated.valid && validated.url) {
-          link_produto = validated.url;
-          fonte = 'brave';
+      const supplierDomain = resolveSupplierDomain(item.source);
+      if (!supplierDomain) {
+        // Sem domínio confiável não há como validar com `site:` — preserva o link original.
+        validation_reason = 'supplier_domain_unknown';
+      } else if (validationsUsed >= maxBraveValidations) {
+        validation_reason = 'validation_limit_reached';
+      } else {
+        const cached = cache?.get(produto, supplierDomain);
+        if (cached) {
+          validation_reason = cached.reason ?? null;
+          if (cached.valid && cached.url) {
+            link_produto = cached.url;
+            fonte = 'brave';
+          }
         } else {
-          // preserve original link and mark reason
-          fonte = 'serper';
+          validationsUsed += 1;
+          try {
+            const validated = await braveClient.validateProductLink({
+              product: produto,
+              candidateUrl: String(item.link),
+              supplierDomain,
+            });
+            cache?.set(produto, supplierDomain, validated);
+            validation_reason = validated.reason ?? null;
+            if (validated.valid && validated.url) {
+              link_produto = validated.url;
+              fonte = 'brave';
+            } else {
+              // preserve original link and mark reason
+              fonte = 'serper';
+            }
+          } catch (err) {
+            if (err instanceof BraveSearchError) {
+              validation_reason = err.message;
+            } else {
+              validation_reason = 'validate_error';
+            }
+            fonte = 'serper';
+          }
         }
-      } catch (err) {
-        if (err instanceof BraveSearchError) {
-          validation_reason = err.message;
-        } else {
-          validation_reason = 'validate_error';
-        }
-        fonte = 'serper';
       }
     }
 

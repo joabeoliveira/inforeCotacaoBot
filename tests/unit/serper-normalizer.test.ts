@@ -18,10 +18,13 @@ test("normaliza resultado padrão do Serper", async () => {
 
 test("identifica link Google Shopping inválido e usa Brave quando validado", async () => {
   const items = [
-    { title: "Produto B", link: "https://www.google.com/search?ibp=oshop&q=produto+b" },
+    { title: "Produto B", link: "https://www.google.com/search?ibp=oshop&q=produto+b", source: "Kalunga" },
   ];
   const braveMock: any = {
-    validateProductLink: async ({ product, candidateUrl }: any) => ({ valid: true, url: "https://example.com/validated", matchedTitle: product, reason: 'matched' }),
+    validateProductLink: async ({ product, candidateUrl, supplierDomain }: any) => {
+      assert.equal(supplierDomain, 'kalunga.com.br');
+      return { valid: true, url: "https://example.com/validated", matchedTitle: product, reason: 'matched' };
+    },
   };
   const res = await normalizeSerperShopping(items, braveMock);
   assert.equal(res[0].link_produto, "https://example.com/validated");
@@ -31,13 +34,25 @@ test("identifica link Google Shopping inválido e usa Brave quando validado", as
 
 test("quando Brave não encontra correspondência, preserva a oferta", async () => {
   const items = [
-    { title: "Produto C", link: "https://www.google.com/search?ibp=oshop&q=produto+c" },
+    { title: "Produto C", link: "https://www.google.com/search?ibp=oshop&q=produto+c", source: "Kalunga" },
   ];
   const braveMock: any = { validateProductLink: async () => ({ valid: false, url: null, reason: 'no_match' }) };
   const res = await normalizeSerperShopping(items, braveMock);
   assert.equal(res[0].link_produto, "https://www.google.com/search?ibp=oshop&q=produto+c");
   assert.equal(res[0].fonte, "serper");
   assert.equal(res[0].validation_reason, 'no_match');
+});
+
+test("sem vendedor conhecido, não aciona o Brave e explica o motivo", async () => {
+  const items = [
+    { title: "Produto G", link: "https://www.google.com/search?ibp=oshop&q=produto+g" },
+  ];
+  let called = false;
+  const braveMock: any = { validateProductLink: async () => { called = true; return { valid: false, url: null, reason: 'should-not-be-called' }; } };
+  const res = await normalizeSerperShopping(items, braveMock);
+  assert.equal(called, false);
+  assert.equal(res[0].validation_reason, 'supplier_domain_unknown');
+  assert.equal(res[0].fonte, 'serper');
 });
 
 test("campos opcionais ausentes e cálculo de custo_total com comissao e frete", async () => {

@@ -1,4 +1,5 @@
 import { BraveSearchClient } from '../brave/client.js';
+import { ValidationCache } from '../brave/validationCache.js';
 import SerperClient from '../serper/client.js';
 
 export interface BootstrapOptions {
@@ -71,7 +72,28 @@ export function createSerperServiceInstance(opts: BootstrapOptions = {}) {
 
   const braveClient = env.BRAVE_SEARCH_API_KEY ? createBraveClient(opts) : undefined;
 
-  return new SerperService({ apiKey, endpoint, timeoutMs, maxRetries, gl, hl, location, braveClient });
+  // Proteções de orçamento do Brave: limite de validações por cotação + cache entre cotações.
+  const maxBraveValidations = env.BRAVE_VALIDATION_MAX_ITEMS
+    ? Number(env.BRAVE_VALIDATION_MAX_ITEMS)
+    : undefined;
+  const cacheTtlMs = env.BRAVE_VALIDATION_CACHE_TTL_MS
+    ? Number(env.BRAVE_VALIDATION_CACHE_TTL_MS)
+    : undefined;
+
+  return new SerperService({
+    apiKey,
+    endpoint,
+    timeoutMs,
+    maxRetries,
+    gl,
+    hl,
+    location,
+    braveClient,
+    normalization: {
+      maxBraveValidations,
+      cache: braveClient ? new ValidationCache({ ttlMs: cacheTtlMs }) : undefined,
+    },
+  });
 }
 
 export default { createBraveClient, createSerperClient, createSerperService };

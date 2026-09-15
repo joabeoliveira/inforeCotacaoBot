@@ -4,6 +4,36 @@ import SerperService from '../serper/service.js';
 
 export interface CreateServerOpts {
   serperService?: SerperService;
+  /**
+   * Chave exigida no header `x-api-key` (ou `Authorization: Bearer <chave>`).
+   * Quando ausente, o endpoint fica aberto (comportamento anterior) — [A CONFIRMAR]
+   * com o negócio qual modelo de autenticação será adotado.
+   */
+  apiKey?: string;
+  /** Tamanho máximo do corpo da requisição em bytes (padrão: 16 KiB). */
+  maxBodyBytes?: number;
+  /** Timeout de processamento por requisição em ms (padrão: 15 s). */
+  requestTimeoutMs?: number;
+}
+
+const DEFAULT_MAX_BODY_BYTES = 16 * 1024;
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
+function positiveNumber(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/** Extrai a chave enviada pelo cliente, aceitando `x-api-key` ou `Authorization: Bearer`. */
+function extractApiKey(req: http.IncomingMessage): string | undefined {
+  const header = req.headers['x-api-key'];
+  if (typeof header === 'string' && header.trim()) return header.trim();
+  const auth = req.headers['authorization'];
+  if (typeof auth === 'string') {
+    const match = /^Bearer\s+(.+)$/i.exec(auth.trim());
+    if (match) return match[1].trim();
+  }
+  return undefined;
 }
 
 function sendJSON(res: http.ServerResponse, status: number, body: unknown) {
@@ -30,6 +60,15 @@ export function logUpstreamError(err: unknown) {
 
 export function createServer(opts: CreateServerOpts = {}) {
   const serperService = opts.serperService ?? createSerperServiceInstance();
+  const apiKey = (opts.apiKey ?? process.env.INFORE_QUOTES_API_KEY ?? '').trim();
+  const maxBodyBytes = positiveNumber(
+    opts.maxBodyBytes ?? process.env.INFORE_MAX_BODY_BYTES,
+    DEFAULT_MAX_BODY_BYTES,
+  );
+  const requestTimeoutMs = positiveNumber(
+    opts.requestTimeoutMs ?? process.env.INFORE_REQUEST_TIMEOUT_MS,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+  );
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -52,8 +91,19 @@ export function createServer(opts: CreateServerOpts = {}) {
         return res.end();
       }
 
+      // Autenticação opcional: ativa quando a chave está configurada no ambiente.
+      if (apiKey && extractApiKey(req) !== apiKey) {
+        return sendJSON(res, 401, { error: 'Unauthorized' });
+      }
+
+      // Limite de tamanho: interrompe a leitura ao exceder, evitando consumo de memória.
       let body = '';
+      let size = 0;
       for await (const chunk of req) {
+        size += Buffer.byteLength(chunk as Buffer);
+        if (size > maxBodyBytes) {
+          return sendJSON(res, 413, { error: 'Payload too large' });
+        }
         body += chunk;
       }
 
@@ -69,17 +119,28 @@ export function createServer(opts: CreateServerOpts = {}) {
         return sendJSON(res, 400, { error: 'Field "query" is required' });
       }
 
+      // Timeout de processamento: evita segurar conexão indefinidamente.
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        if (!res.headersSent) sendJSON(res, 504, { error: 'Request timeout' });
+      }, requestTimeoutMs);
       try {
         const offers = await serperService.searchAndNormalize(query.trim());
+        if (timedOut) return;
         return sendJSON(res, 200, { offers, count: Array.isArray(offers) ? offers.length : 0 });
       } catch (err: any) {
         // Diagnóstico no log do servidor (sem expor segredos); resposta genérica ao cliente.
         logUpstreamError(err);
+        if (timedOut) return;
         return sendJSON(res, 502, { error: 'Upstream search service failed' });
+      } finally {
+        clearTimeout(timer);
       }
     } catch (err) {
       // Unexpected
-      return sendJSON(res, 500, { error: 'Internal server error' });
+      if (!res.headersSent) return sendJSON(res, 500, { error: 'Internal server error' });
+      return;
     }
   });
 

@@ -50,6 +50,11 @@ O `Dockerfile` não copia `.env`, `tests/`, `workflows/` nem `docs/` (ver `.dock
    BRAVE_SEARCH_API_URL=https://api.search.brave.com/res/v1/web/search
    BRAVE_SEARCH_TIMEOUT_MS=5000
    BRAVE_SEARCH_MAX_RETRIES=2
+   BRAVE_VALIDATION_MAX_ITEMS=5
+   BRAVE_VALIDATION_CACHE_TTL_MS=86400000
+   INFORE_QUOTES_API_KEY=<chave-do-cliente-n8n>
+   INFORE_MAX_BODY_BYTES=16384
+   INFORE_REQUEST_TIMEOUT_MS=15000
    ```
 6. **Deploy** (o Easypanel faz build da imagem, aplica as envs e sobe o container).
 7. Após o deploy, valide pelo domínio público da App:
@@ -93,22 +98,27 @@ npm run build && npm start   # simula o comportamento do container
 
 ## 6. Segurança
 
-🔴 **Pendência crítica — [A CONFIRMAR]**: o endpoint `POST /api/quotes/search` está **aberto, sem autenticação e sem rate limit**. Publicado na internet, qualquer pessoa pode consumir as quotas pagas de Serper/Brave.
+O endpoint `POST /api/quotes/search` já tem três proteções implementadas:
 
-Opções (decisão de negócio):
+| Proteção | Como funciona |
+| :--- | :--- |
+| **Autenticação opcional** | Se `INFORE_QUOTES_API_KEY` estiver definida, exige o header `x-api-key` (ou `Authorization: Bearer`). Sem a variável, o endpoint fica aberto |
+| **Limite de corpo** | `INFORE_MAX_BODY_BYTES` (padrão 16 KiB) → excedeu, responde `413` |
+| **Timeout de requisição** | `INFORE_REQUEST_TIMEOUT_MS` (padrão 15 s) → excedeu, responde `504` |
 
-| Opção | Esforço | Observação |
+🟡 **Pendência de decisão — [A CONFIRMAR]**: qual modelo definitivo de autenticação adotar. A chave única por header já funciona hoje; alternativas: chave por cliente com rate limit, restrição por IP/Cloudflare Access, ou Basic Auth no proxy.
+
+Proteções de orçamento do Brave (críticas, pois o Serper devolve dezenas de itens por busca):
+
+| Variável | Padrão | Efeito |
 | :--- | :--- | :--- |
-| Header `x-api-key`/`Authorization: Bearer` validado pela API | Baixo | Chave única compartilhada com o n8n — [A CONFIRMAR] |
-| API key por cliente + rate limit por chave | Médio | Requer gestão de chaves — [A CONFIRMAR] |
-| Restringir por IP/rede (Easypanel/Cloudflare) ao IP do n8n | Baixo | Não cobre n8n com IP dinâmico — [A CONFIRMAR] |
-| Basic Auth do proxy (Easypanel/Cloudflare Access) | Baixo | Camada extra, sem alterar o código |
+| `BRAVE_VALIDATION_MAX_ITEMS` | `5` | Máximo de itens validados por cotação |
+| `BRAVE_VALIDATION_CACHE_TTL_MS` | `86400000` (24h) | Reaproveita validações repetidas (mesmo produto+domínio) |
 
 Recomendações adicionais:
 
-- Limite de tamanho do body e timeout de requisição no servidor (hoje **não existem**).
 - Cache de curta duração para queries repetidas, reduzindo custo de API.
-- Nunca registrar corpo de requisição nem valores de chaves nos logs.
+- Nunca registrar corpo de requisição nem valores de chaves nos logs (o log de upstream já redige sequências longas).
 
 ---
 
