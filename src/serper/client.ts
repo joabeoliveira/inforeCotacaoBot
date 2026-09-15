@@ -15,7 +15,9 @@ export interface SerperClientOptions {
   fetchImpl?: typeof fetch;
 }
 
-const DEFAULT_ENDPOINT = 'https://api.serper.dev/search';
+// Endpoint oficial do Serper (Google Search API). Não é api.serper.dev — esse host
+// responde HTTP 404 e foi a causa de falhas de integração.
+const DEFAULT_ENDPOINT = 'https://google.serper.dev/search';
 
 export class SerperClient {
   private endpoint: string;

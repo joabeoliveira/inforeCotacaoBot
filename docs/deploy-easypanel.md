@@ -40,7 +40,7 @@ O `Dockerfile` não copia `.env`, `tests/`, `workflows/` nem `docs/` (ver `.dock
    ```env
    PORT=3000
    SERPER_API_KEY=<sua-chave>
-   SERPER_API_URL=https://api.serper.dev/search
+   SERPER_API_URL=https://google.serper.dev/search
    SERPER_TIMEOUT_MS=5000
    SERPER_MAX_RETRIES=2
    BRAVE_SEARCH_API_KEY=<sua-chave-opcional>

@@ -85,6 +85,18 @@ test('timeout dispara erro', async () => {
   );
 });
 
+test('usa o endpoint oficial do Serper por padrão (google.serper.dev)', async () => {
+  let calledUrl = '';
+  const mockFetch = async (url: unknown) => {
+    calledUrl = String(url);
+    return new Response(JSON.stringify({ shopping: [] }), { status: 200 });
+  };
+  const client = new SerperClient({ apiKey: 'k', fetchImpl: mockFetch as any });
+  await client.searchShopping('q');
+  // Regressão: api.serper.dev responde HTTP 404 e quebrava a integração end-to-end
+  assert.equal(calledUrl, 'https://google.serper.dev/search');
+});
+
 test('resposta sem campo shopping não quebra e retorna objeto vazio', async () => {
   const mockFetch = async () => new Response(JSON.stringify({}), { status: 200 });
   const client = new SerperClient({ apiKey: 'k', fetchImpl: mockFetch as any, maxRetries: 0 });
